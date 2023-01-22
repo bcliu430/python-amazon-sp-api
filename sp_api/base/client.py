@@ -1,6 +1,5 @@
 import hashlib
 import json
-import re
 from datetime import datetime
 import logging
 import os
@@ -42,11 +41,16 @@ class Client(BaseClient):
             proxies=None,
             verify=True,
             timeout=None,
-            version=None
+            version=None,
+            credential_providers=None,
     ):
         if os.environ.get('SP_API_DEFAULT_MARKETPLACE', None):
             marketplace = Marketplaces[os.environ.get('SP_API_DEFAULT_MARKETPLACE')]
-        self.credentials = CredentialProvider(account, credentials).credentials
+        self.credentials = CredentialProvider(
+            account,
+            credentials,
+            credential_providers=credential_providers,
+        ).credentials
         boto_config = Config(
             proxies=proxies,
         )
@@ -135,7 +139,7 @@ class Client(BaseClient):
             data = {}
 
         # Note: The use of isinstance here is to support request schemas that are an array at the
-        # top level, eg get_product_fees_estimate 
+        # top level, eg get_product_fees_estimate
         self.method = params.pop('method', data.pop('method', 'GET') if isinstance(data, dict) else 'GET')
 
         if add_marketplace:
@@ -160,12 +164,15 @@ class Client(BaseClient):
             except JSONDecodeError:
                 js = {'status_code': res.status_code}
         else:
-            js = res.json() or {}
+            try:
+                js = res.json() or {}
+            except JSONDecodeError:
+                js = {}
 
         if isinstance(js, list):
             if wrap_list:
                 # Support responses that are an array at the top level, eg get_product_fees_estimate
-                js = dict(payload = js)
+                js = dict(payload=js)
             else:
                 js = js[0]
 
